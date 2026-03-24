@@ -12,6 +12,7 @@ const { formatEntry, formatTaskCreated } = require('./formatter');
 const { dispatch }       = require('./commands');
 const { startScheduler } = require('./scheduler');
 const { isGroupAllowed, addGroup, removeGroup } = require('./config');
+const { interpretMessage } = require('./ai');
 
 // ─── Cliente WhatsApp ────────────────────────────────────────────────────────
 
@@ -142,7 +143,7 @@ async function processMessage(msg) {
       return;
     }
 
-    // ── Tarefa / lembrete ─────────────────────────────────────────────
+    // ── Tarefa / lembrete (parser local) ─────────────────────────────
     const task = parseTask(body);
     if (task) {
       const result = insertTask({ ...task, chatId });
@@ -152,16 +153,52 @@ async function processMessage(msg) {
       return;
     }
 
-    // ── Lançamento financeiro ─────────────────────────────────────────
+    // ── Lançamento financeiro (parser local) ──────────────────────────
     const parsed = parseMessage(body);
-    if (!parsed) return;
+    if (parsed) {
+      const category = detectCategory(parsed.description);
+      insertEntry({ ...parsed, category, chatId });
+      const chat = await msg.getChat();
+      await chat.sendMessage(formatEntry(parsed, category));
+      return;
+    }
 
-    const category = detectCategory(parsed.description);
-    insertEntry({ ...parsed, category, chatId });
+    // ── Fallback: Gemini interpreta linguagem natural ─────────────────
+    const ai = await interpretMessage(body);
+    if (!ai || ai.type === 'ignore') return;
 
-    const reply = formatEntry(parsed, category);
     const chat = await msg.getChat();
-    await chat.sendMessage(reply);
+
+    if (ai.type === 'task' && ai.description) {
+      // Monta a data a partir do que o Gemini retornou
+      const dateStr = ai.date || new Date().toISOString().split('T')[0];
+      const timeStr = ai.time || '00:00';
+      const dueAt   = new Date(`${dateStr}T${timeStr}:00`);
+
+      if (isNaN(dueAt.getTime()) || dueAt < new Date()) {
+        await chat.sendMessage('⚠️ Não consegui entender a data. Tente: `lembrar dentista dia 25 às 14h`');
+        return;
+      }
+
+      const taskData = { description: ai.description, dueAt };
+      const result   = insertTask({ ...taskData, chatId });
+      taskData.id    = result.lastInsertRowid;
+      await chat.sendMessage(formatTaskCreated(taskData));
+      return;
+    }
+
+    if ((ai.type === 'expense' || ai.type === 'income') && ai.amount) {
+      const entry = { type: ai.type, amount: ai.amount, description: ai.description || body };
+      const category = detectCategory(entry.description);
+      insertEntry({ ...entry, category, chatId });
+      await chat.sendMessage(formatEntry(entry, category));
+      return;
+    }
+
+    // Gemini entendeu mas faltam dados
+    if (ai.type === 'expense' || ai.type === 'income') {
+      await chat.sendMessage('⚠️ Não encontrei o valor. Tente: `gastei 50 almoço`');
+    }
 
   } catch (err) {
     console.error('Erro ao processar mensagem:', err);

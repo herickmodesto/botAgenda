@@ -8,6 +8,7 @@
     "dev": "nodemon src/index.js"
   },
   "dependencies": {
+    "@google/generative-ai": "^0.24.1",
     "better-sqlite3": "^12.8.0",
     "chrono-node": "^2.9.0",
     "date-fns": "^4.1.0",

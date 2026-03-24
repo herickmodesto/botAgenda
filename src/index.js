@@ -27,6 +27,7 @@ const client = new Client({
     dataPath: AUTH_DIR,
   }),
   puppeteer: {
+    executablePath: process.env.PUPPETEER_EXECUTABLE_PATH || '/usr/bin/chromium',
     args: [
       '--no-sandbox',
       '--disable-setuid-sandbox',
@@ -40,6 +41,10 @@ const client = new Client({
       '--mute-audio',
     ],
     headless: true,
+  },
+  webVersionCache: {
+    type: 'local',
+    path: path.join(AUTH_DIR, 'wwebjs_cache'),
   },
 });
 

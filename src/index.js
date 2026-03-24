@@ -136,6 +136,18 @@ async function processMessage(msg) {
     if (!isAtivando && !isGroupAllowed(groupId)) return;
   }
 
+  // Em chats privados: só responde ao próprio usuário (self-chat) ou números permitidos
+  if (!isGroup) {
+    const isSelfChat = msg.from === msg.to;
+    if (!isSelfChat) {
+      const ALLOWED = process.env.ALLOWED_NUMBERS
+        ? process.env.ALLOWED_NUMBERS.split(',').map(n => n.trim())
+        : [];
+      const sender = (msg.fromMe ? msg.to : msg.from).replace('@c.us', '');
+      if (ALLOWED.length > 0 && !ALLOWED.includes(sender)) return;
+    }
+  }
+
   const chatId = isGroup
     ? groupId
     : msg.fromMe

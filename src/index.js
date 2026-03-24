@@ -64,14 +64,39 @@ client.on('ready', () => {
   console.log('🤖 Bot de finanças pronto!');
   console.log('   Envie uma mensagem como "gastei 50 almoço" ou /ajuda para começar.\n');
   setConnected('Bot de Finanças & Agenda conectado.');
+  botReady = true;
+  lastMessageTime = Date.now();
   startScheduler(client);
 });
 
 client.on('disconnected', (reason) => {
-  console.log('⚠️  Desconectado:', reason);
-  console.log('   Tentando reconectar...');
-  client.initialize().catch(console.error);
+  console.log('⚠️  Desconectado:', reason, '— encerrando para reiniciar...');
+  process.exit(1); // Railway reinicia automaticamente
 });
+
+// ─── Health check: detecta estado "zumbi" (conectado mas sem eventos) ────────
+
+let lastMessageTime = Date.now();
+let botReady = false;
+
+setInterval(async () => {
+  if (!botReady) return;
+  const minutesSinceStart = (Date.now() - lastMessageTime) / 60000;
+  // Se passou mais de 10 minutos sem nenhum evento, verifica o estado real
+  if (minutesSinceStart > 10) {
+    try {
+      const state = await client.getState();
+      console.log(`[health] estado: ${state}`);
+      if (state !== 'CONNECTED') {
+        console.log('[health] cliente desconectado — reiniciando...');
+        process.exit(1);
+      }
+    } catch (err) {
+      console.log('[health] erro ao verificar estado — reiniciando...', err.message);
+      process.exit(1);
+    }
+  }
+}, 5 * 60 * 1000); // verifica a cada 5 minutos
 
 // ─── Processamento de mensagem ───────────────────────────────────────────────
 
@@ -218,6 +243,7 @@ function shouldProcess(msg) {
 // ─── Mensagens recebidas (de outros OU suas — local e nuvem) ─────────────────
 
 client.on('message', async (msg) => {
+  lastMessageTime = Date.now();
   console.log(`[message] from=${msg.from} to=${msg.to} fromMe=${msg.fromMe} body="${msg.body?.substring(0,30)}"`);
   if (!shouldProcess(msg)) return;
   await processMessage(msg);
@@ -238,6 +264,16 @@ client.on('message_create', async (msg) => {
 });
 
 // ─── Inicialização ───────────────────────────────────────────────────────────
+
+// Qualquer erro não tratado encerra o processo para o Railway reiniciar
+process.on('uncaughtException', (err) => {
+  console.error('❌ Erro não tratado — reiniciando:', err.message);
+  process.exit(1);
+});
+process.on('unhandledRejection', (err) => {
+  console.error('❌ Promise rejeitada — reiniciando:', err?.message || err);
+  process.exit(1);
+});
 
 startQRServer();
 console.log('🚀 Iniciando bot de finanças...');

@@ -10,7 +10,8 @@ function getModel() {
   if (!GEMINI_API_KEY) return null;
   if (!model) {
     const genAI = new GoogleGenerativeAI(GEMINI_API_KEY);
-    model = genAI.getGenerativeModel({ model: 'gemini-2.5-flash' });
+    // gemini-2.5-flash = Gemini 3 Flash | gemini-2.5-flash-lite = Gemini 3.1 Flash-Lite
+    model = genAI.getGenerativeModel({ model: 'gemini-2.5-flash-lite' });
   }
   return model;
 }

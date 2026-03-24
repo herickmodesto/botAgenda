@@ -280,15 +280,11 @@ process.on('unhandledRejection', (err) => {
 });
 
 // Remove lock files do Chromium que ficam presos após reinicialização do container
-const fs = require('fs');
-const lockFiles = [
-  path.join(AUTH_DIR, 'SingletonLock'),
-  path.join(AUTH_DIR, 'SingletonCookie'),
-  path.join(AUTH_DIR, 'Default', 'SingletonLock'),
-];
-for (const lf of lockFiles) {
-  try { fs.unlinkSync(lf); console.log(`[init] lock removido: ${lf}`); } catch {}
-}
+const { execSync } = require('child_process');
+try {
+  execSync(`find "${AUTH_DIR}" -name "SingletonLock" -delete 2>/dev/null; find "${AUTH_DIR}" -name "SingletonCookie" -delete 2>/dev/null; true`);
+  console.log('[init] lock files do Chromium limpos');
+} catch {}
 
 startQRServer();
 console.log('🚀 Iniciando bot de finanças...');

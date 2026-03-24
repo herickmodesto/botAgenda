@@ -44,8 +44,8 @@ const client = new Client({
     headless: true,
   },
   webVersionCache: {
-    type: 'local',
-    path: path.join(AUTH_DIR, 'wwebjs_cache'),
+    type: 'remote',
+    remotePath: 'https://raw.githubusercontent.com/wppconnect-team/wa-version/main/html/{version}.html',
   },
 });
 

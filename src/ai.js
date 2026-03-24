@@ -2,6 +2,26 @@
 
 const { GoogleGenerativeAI } = require('@google/generative-ai');
 
+// Palavras que indicam que a mensagem PODE ser financeira ou de tarefa
+// Só chama o Gemini se encontrar pelo menos uma dessas
+const INTENT_KEYWORDS = [
+  'gastei','paguei','comprei','recebi','ganhei','entrou','custou','valor',
+  'reais','real','r$','dinheiro','devo','conta','boleto',
+  'lembrar','lembrete','reunião','reuniao','aniversario','aniversário',
+  'consulta','dentista','medico','médico','compromisso','agenda',
+  'tarefa','evento','marcar','agendar','dia','amanhã','amanha',
+  'semana','mês','mes','hoje','sexta','sabado','domingo','segunda',
+  'terça','quarta','quinta','as ','às ','hora','horas',
+];
+
+/**
+ * Verifica se a mensagem tem chance de ser financeira ou de tarefa
+ */
+function looksRelevant(text) {
+  const lower = text.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+  return INTENT_KEYWORDS.some(kw => lower.includes(kw));
+}
+
 const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
 
 let model = null;
@@ -10,8 +30,7 @@ function getModel() {
   if (!GEMINI_API_KEY) return null;
   if (!model) {
     const genAI = new GoogleGenerativeAI(GEMINI_API_KEY);
-    // gemini-2.5-flash = Gemini 3 Flash | gemini-2.5-flash-lite = Gemini 3.1 Flash-Lite
-    model = genAI.getGenerativeModel({ model: 'gemini-2.5-flash-lite' });
+    model = genAI.getGenerativeModel({ model: 'gemini-2.0-flash' });
   }
   return model;
 }
@@ -56,6 +75,9 @@ Regras importantes:
 async function interpretMessage(text) {
   const m = getModel();
   if (!m) return null;
+
+  // Não chama o Gemini para mensagens que claramente não são financeiras/tarefas
+  if (!looksRelevant(text)) return null;
 
   try {
     const today = new Date().toISOString().split('T')[0];

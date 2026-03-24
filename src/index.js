@@ -218,6 +218,7 @@ function shouldProcess(msg) {
 // ─── Mensagens recebidas (de outros OU suas — local e nuvem) ─────────────────
 
 client.on('message', async (msg) => {
+  console.log(`[message] from=${msg.from} to=${msg.to} fromMe=${msg.fromMe} body="${msg.body?.substring(0,30)}"`);
   if (!shouldProcess(msg)) return;
   await processMessage(msg);
 });
@@ -225,6 +226,7 @@ client.on('message', async (msg) => {
 // ─── Mensagens criadas por você (self-chat e grupos no PC local) ─────────────
 
 client.on('message_create', async (msg) => {
+  console.log(`[message_create] from=${msg.from} to=${msg.to} fromMe=${msg.fromMe} body="${msg.body?.substring(0,30)}"`);
   if (!msg.fromMe) return;
   if (!shouldProcess(msg)) return;
 

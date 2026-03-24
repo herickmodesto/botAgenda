@@ -200,21 +200,36 @@ async function processMessage(msg) {
   }
 }
 
-// ─── Mensagens recebidas de outros (incluindo membros do grupo) ──────────────
+// ─── Deduplicação (evita processar a mesma mensagem duas vezes) ──────────────
+
+const processedIds = new Set();
+
+function shouldProcess(msg) {
+  const id = msg.id?._serialized || msg.id?.id;
+  if (!id) return true;
+  if (processedIds.has(id)) return false;
+  processedIds.add(id);
+  if (processedIds.size > 500) {
+    processedIds.delete(processedIds.values().next().value);
+  }
+  return true;
+}
+
+// ─── Mensagens recebidas (de outros OU suas — local e nuvem) ─────────────────
 
 client.on('message', async (msg) => {
-  if (msg.fromMe) return; // tratado pelo message_create
+  if (!shouldProcess(msg)) return;
   await processMessage(msg);
 });
 
-// ─── Mensagens enviadas por você (self-chat E grupos) ────────────────────────
+// ─── Mensagens criadas por você (self-chat e grupos no PC local) ─────────────
 
 client.on('message_create', async (msg) => {
   if (!msg.fromMe) return;
+  if (!shouldProcess(msg)) return;
 
   const isSelfChat = msg.from === msg.to;
   const isGroupMsg = msg.to?.endsWith('@g.us') || msg.id?.remote?.endsWith('@g.us');
-
   if (!isSelfChat && !isGroupMsg) return;
 
   await processMessage(msg);

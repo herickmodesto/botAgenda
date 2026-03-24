@@ -14,6 +14,7 @@ const { dispatch }       = require('./commands');
 const { startScheduler } = require('./scheduler');
 const { isGroupAllowed, addGroup, removeGroup } = require('./config');
 const { interpretMessage } = require('./ai');
+const { startQRServer, setQR, setConnected } = require('./qrServer');
 
 // ─── Cliente WhatsApp ────────────────────────────────────────────────────────
 
@@ -41,19 +42,11 @@ const client = new Client({
 // Caso contrário, exibe QR code no terminal (uso local)
 const PHONE_NUMBER = process.env.PHONE_NUMBER; // ex: "5511999999999"
 
-client.on('qr', async (qr) => {
-  if (PHONE_NUMBER) {
-    // Nuvem: solicita código de pareamento em vez de QR
-    try {
-      const code = await client.requestPairingCode(PHONE_NUMBER);
-      console.log(`\n📱 Código de pareamento: ${code}`);
-      console.log('   No WhatsApp: Configurações → Dispositivos Vinculados → Vincular com número de telefone\n');
-    } catch (err) {
-      console.error('Erro ao solicitar código de pareamento:', err.message);
-    }
-  } else {
-    // Local: exibe QR no terminal
-    console.log('\n📱 Escaneie o QR Code com seu WhatsApp (Dispositivos Vinculados → Vincular dispositivo):\n');
+client.on('qr', (qr) => {
+  setQR(qr);
+  if (!PHONE_NUMBER) {
+    // Local: também exibe QR no terminal
+    console.log('\n📱 Escaneie o QR Code com seu WhatsApp:\n');
     qrcode.generate(qr, { small: true });
   }
 });
@@ -70,6 +63,7 @@ client.on('auth_failure', (msg) => {
 client.on('ready', () => {
   console.log('🤖 Bot de finanças pronto!');
   console.log('   Envie uma mensagem como "gastei 50 almoço" ou /ajuda para começar.\n');
+  setConnected('Bot de Finanças & Agenda conectado.');
   startScheduler(client);
 });
 
@@ -228,6 +222,7 @@ client.on('message_create', async (msg) => {
 
 // ─── Inicialização ───────────────────────────────────────────────────────────
 
+startQRServer();
 console.log('🚀 Iniciando bot de finanças...');
 client.initialize().catch((err) => {
   console.error('❌ Erro ao inicializar o cliente:', err);

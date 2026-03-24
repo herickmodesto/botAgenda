@@ -40,6 +40,8 @@ const client = new Client({
       '--disable-default-apps',
       '--no-first-run',
       '--mute-audio',
+      '--single-process',
+      '--disable-features=IsolateOrigins,site-per-process',
     ],
     headless: true,
   },
@@ -295,11 +297,15 @@ client.on('message_create', async (msg) => {
 // ─── Inicialização ───────────────────────────────────────────────────────────
 
 // Qualquer erro não tratado encerra o processo para o Railway reiniciar
+// (desativado durante inicialização para permitir retry)
+let botInitialized = false;
+
 process.on('uncaughtException', (err) => {
   console.error('❌ Erro não tratado — reiniciando:', err.message);
   process.exit(1);
 });
 process.on('unhandledRejection', (err) => {
+  if (!botInitialized) return; // durante init, o catch do initializeBot cuida do erro
   console.error('❌ Promise rejeitada — reiniciando:', err?.message || err);
   process.exit(1);
 });
@@ -317,6 +323,7 @@ async function initializeBot(attempt) {
   cleanLockFiles();
   try {
     await client.initialize();
+    botInitialized = true;
   } catch (err) {
     console.error(`[init] falhou (tentativa ${attempt}): ${err.message}`);
     if (attempt === 1) {
@@ -331,4 +338,4 @@ async function initializeBot(attempt) {
 
 startQRServer();
 console.log('🚀 Iniciando bot de finanças...');
-initializeBot(1);
+initializeBot(1).catch(() => process.exit(1));

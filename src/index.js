@@ -225,11 +225,15 @@ async function processMessage(msg) {
   }
 }
 
-// ─── Deduplicação (evita processar a mesma mensagem duas vezes) ──────────────
+// ─── Deduplicação e filtro de mensagens antigas ───────────────────────────────
 
 const processedIds = new Set();
+const BOT_START_TIME = Math.floor(Date.now() / 1000); // timestamp em segundos
 
 function shouldProcess(msg) {
+  // Ignora mensagens enviadas ANTES do bot iniciar (mensagens antigas ao reconectar)
+  if (msg.timestamp && msg.timestamp < BOT_START_TIME - 5) return false;
+
   const id = msg.id?._serialized || msg.id?.id;
   if (!id) return true;
   if (processedIds.has(id)) return false;

@@ -306,14 +306,29 @@ process.on('unhandledRejection', (err) => {
 
 // Remove lock files do Chromium que ficam presos após reinicialização do container
 const { execSync } = require('child_process');
-try {
-  execSync(`find "${AUTH_DIR}" -name "SingletonLock" -delete 2>/dev/null; find "${AUTH_DIR}" -name "SingletonCookie" -delete 2>/dev/null; true`);
-  console.log('[init] lock files do Chromium limpos');
-} catch {}
+function cleanLockFiles() {
+  try {
+    execSync(`find "${AUTH_DIR}" -name "SingletonLock" -delete 2>/dev/null; find "${AUTH_DIR}" -name "SingletonCookie" -delete 2>/dev/null; find "${AUTH_DIR}" -name "SingletonSocket" -delete 2>/dev/null; true`);
+    console.log('[init] lock files do Chromium limpos');
+  } catch {}
+}
+
+async function initializeBot(attempt) {
+  cleanLockFiles();
+  try {
+    await client.initialize();
+  } catch (err) {
+    console.error(`[init] falhou (tentativa ${attempt}): ${err.message}`);
+    if (attempt === 1) {
+      console.log('[init] limpando auth corrompida e tentando novamente...');
+      try { execSync(`rm -rf "${AUTH_DIR}"`); } catch {}
+      await new Promise(r => setTimeout(r, 5000));
+      return initializeBot(2);
+    }
+    process.exit(1);
+  }
+}
 
 startQRServer();
 console.log('🚀 Iniciando bot de finanças...');
-client.initialize().catch((err) => {
-  console.error('❌ Erro ao inicializar o cliente:', err);
-  process.exit(1);
-});
+initializeBot(1);

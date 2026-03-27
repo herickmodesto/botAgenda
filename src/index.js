@@ -146,6 +146,7 @@ async function processMessage(msg) {
         ? process.env.ALLOWED_NUMBERS.split(',').map(n => n.trim())
         : [];
       const sender = (msg.fromMe ? msg.to : msg.from).replace('@c.us', '');
+      console.log('[DEBUG] Sender:', sender, '| ALLOWED:', ALLOWED);
       if (ALLOWED.length > 0 && !ALLOWED.includes(sender)) return;
     }
   }
@@ -319,8 +320,20 @@ function cleanLockFiles() {
   } catch {}
 }
 
+// Remove cache do Chrome que cresce rapidamente, preservando a sessão (IndexedDB/Local Storage)
+function cleanAuthCache() {
+  const CACHE_DIRS = ['Cache', 'Code Cache', 'GPUCache', 'DawnCache', 'blob_storage', 'ShaderCache', 'VideoDecodeStats'];
+  try {
+    for (const dir of CACHE_DIRS) {
+      execSync(`find "${AUTH_DIR}" -type d -name "${dir}" | xargs -r rm -rf 2>/dev/null; true`);
+    }
+    console.log('[init] cache do Chromium limpo');
+  } catch {}
+}
+
 async function initializeBot(attempt) {
   cleanLockFiles();
+  cleanAuthCache();
   try {
     await client.initialize();
     botInitialized = true;

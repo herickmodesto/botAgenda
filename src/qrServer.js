@@ -3,72 +3,64 @@
 const express = require('express');
 const QRCode  = require('qrcode');
 
-const app  = express();
-const PORT = process.env.PORT || 3000;
+const app = express();
 
-let currentQR     = null;
-let isConnected   = false;
-let connectedInfo = '';
+let _qr     = null;
+let _status = 'Aguardando conexão...';
 
 app.get('/', async (req, res) => {
-  if (isConnected) {
-    return res.send(`<!DOCTYPE html>
-<html><head><meta charset="utf-8"><title>Bot WhatsApp</title>
-<style>body{font-family:sans-serif;display:flex;align-items:center;justify-content:center;height:100vh;margin:0;background:#f0f2f5;}
-.card{background:white;padding:40px;border-radius:16px;text-align:center;box-shadow:0 2px 20px rgba(0,0,0,.1);}
-h2{color:#25d366;margin:0 0 10px;}p{color:#666;}</style></head>
-<body><div class="card"><h2>✅ Bot Conectado!</h2><p>${connectedInfo}</p><p>O bot está rodando normalmente.</p></div></body></html>`);
-  }
-
-  if (!currentQR) {
-    return res.send(`<!DOCTYPE html>
-<html><head><meta charset="utf-8"><meta http-equiv="refresh" content="3"><title>Aguardando QR</title>
-<style>body{font-family:sans-serif;display:flex;align-items:center;justify-content:center;height:100vh;margin:0;background:#f0f2f5;}
-.card{background:white;padding:40px;border-radius:16px;text-align:center;box-shadow:0 2px 20px rgba(0,0,0,.1);}
-.spin{font-size:48px;animation:spin 1s linear infinite;}
-@keyframes spin{from{transform:rotate(0deg)}to{transform:rotate(360deg)}}</style></head>
-<body><div class="card"><div class="spin">⏳</div><h2>Gerando QR Code...</h2><p>A página vai atualizar automaticamente.</p></div></body></html>`);
-  }
-
-  try {
-    const qrImage = await QRCode.toDataURL(currentQR, { width: 300, margin: 2 });
+  if (_qr) {
+    try {
+      const qrImg = await QRCode.toDataURL(_qr, { width: 300, margin: 2 });
+      res.send(`<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Bot — Escaneie o QR</title>
+  <style>
+    body { background:#111; color:#fff; font-family:sans-serif; text-align:center; padding:40px 20px; }
+    img  { border-radius:12px; max-width:300px; width:90vw; }
+    p    { color:#aaa; max-width:400px; margin:16px auto; }
+  </style>
+</head>
+<body>
+  <h2>📱 Escaneie com seu WhatsApp</h2>
+  <img src="${qrImg}" alt="QR Code">
+  <p>WhatsApp → Dispositivos conectados → Conectar dispositivo</p>
+  <p style="font-size:0.85em">Atualiza automaticamente a cada 15s.</p>
+  <script>setTimeout(()=>location.reload(),15000)</script>
+</body>
+</html>`);
+    } catch {
+      res.status(500).send('Erro ao gerar QR.');
+    }
+  } else {
     res.send(`<!DOCTYPE html>
-<html><head><meta charset="utf-8"><meta http-equiv="refresh" content="30"><title>Escanear QR</title>
-<style>body{font-family:sans-serif;display:flex;align-items:center;justify-content:center;min-height:100vh;margin:0;background:#f0f2f5;}
-.card{background:white;padding:32px;border-radius:16px;text-align:center;box-shadow:0 2px 20px rgba(0,0,0,.1);}
-h2{color:#128c7e;margin:0 0 4px;}p{color:#666;margin:4px 0;}img{border:4px solid #25d366;border-radius:8px;margin:16px 0;}
-.steps{text-align:left;background:#f8f8f8;padding:16px;border-radius:8px;margin-top:16px;font-size:14px;}
-.steps li{margin:6px 0;}</style></head>
-<body><div class="card">
-  <h2>📱 Escaneie o QR Code</h2>
-  <p>O código expira em ~30 segundos — a página atualiza sozinha</p>
-  <img src="${qrImage}" alt="QR Code"/>
-  <div class="steps"><ol>
-    <li>Abra o WhatsApp no celular</li>
-    <li>Vá em <strong>Configurações → Dispositivos Vinculados</strong></li>
-    <li>Toque em <strong>Vincular dispositivo</strong></li>
-    <li>Escaneie o QR Code acima</li>
-  </ol></div>
-</div></body></html>`);
-  } catch (err) {
-    res.status(500).send('Erro ao gerar QR Code: ' + err.message);
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>Bot de Finanças</title>
+  <style>
+    body { background:#111; color:#fff; font-family:sans-serif; text-align:center; padding:60px 20px; }
+    .ok  { font-size:1.2em; color:#4ade80; margin-top:24px; }
+  </style>
+</head>
+<body>
+  <h2>🤖 Bot de Finanças & Agenda</h2>
+  <div class="ok">${_status}</div>
+  <script>setTimeout(()=>location.reload(),10000)</script>
+</body>
+</html>`);
   }
 });
 
+function setQR(qr)         { _qr = qr; }
+function setConnected(msg) { _qr = null; _status = msg || 'Conectado!'; }
+
 function startQRServer() {
-  app.listen(PORT, () => {
-    console.log(`🌐 Servidor QR rodando na porta ${PORT}`);
-  });
-}
-
-function setQR(qr) {
-  currentQR = qr;
-}
-
-function setConnected(info = '') {
-  isConnected   = true;
-  currentQR     = null;
-  connectedInfo = info;
+  const PORT = process.env.PORT || 3000;
+  app.listen(PORT, () => console.log(`🌐 Servidor web rodando na porta ${PORT}`));
 }
 
 module.exports = { startQRServer, setQR, setConnected };

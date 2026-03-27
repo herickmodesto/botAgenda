@@ -2,7 +2,6 @@
 
 const chrono = require('chrono-node');
 
-// Palavras que ativam o registro de tarefa
 const TASK_TRIGGERS = [
   'lembrar', 'lembre', 'lembrete',
   'reuniao', 'reunião',
@@ -10,6 +9,7 @@ const TASK_TRIGGERS = [
   'agendar', 'agenda',
   'marcar', 'evento',
   'consulta', 'dentista',
+  'medico', 'médico',
 ];
 
 const TRIGGER_REGEX = new RegExp(
@@ -17,9 +17,6 @@ const TRIGGER_REGEX = new RegExp(
   'i'
 );
 
-/**
- * Meses em português para ajudar o chrono
- */
 const MONTH_REPLACEMENTS = {
   'janeiro': 'january', 'fevereiro': 'february', 'março': 'march',
   'marco': 'march', 'abril': 'april', 'maio': 'may', 'junho': 'june',
@@ -44,26 +41,18 @@ function translateToChrono(text) {
     t = t.replace(new RegExp(`\\b${pt}\\b`, 'g'), en);
   }
 
-  // "25 de março" → "25 march" (remove o "de" entre número e mês)
   t = t.replace(/(\d+)\s+de\s+/g, '$1 ');
-
-  // "10h" → "10:00", "10h30" → "10:30"
   t = t.replace(/(\d{1,2})h(\d{2})?/g, (_, h, m) => `${h}:${m || '00'}`);
 
   return t;
 }
 
-/**
- * Faz parse de uma mensagem de tarefa
- * @param {string} text
- * @returns {{ description: string, dueAt: Date, raw: string } | null}
- */
 function parseTask(text) {
   const trimmed = text.trim();
   const match   = trimmed.match(TRIGGER_REGEX);
   if (!match) return null;
 
-  const content    = match[2]; // tudo após o trigger
+  const content    = match[2];
   const translated = translateToChrono(content);
   const now        = new Date();
 
@@ -73,10 +62,8 @@ function parseTask(text) {
   const parsed = results[0];
   const dueAt  = parsed.date();
 
-  // Descrição = parte sem a data detectada
-  const descriptionRaw = content
-    .substring(0, parsed.index).trim() +
-    ' ' +
+  const descriptionRaw =
+    content.substring(0, parsed.index).trim() + ' ' +
     content.substring(parsed.index + parsed.text.length).trim();
 
   const description = descriptionRaw.trim() || content.trim();

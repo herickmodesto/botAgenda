@@ -4,124 +4,121 @@ const { CATEGORY_LABELS, CATEGORY_ICONS } = require('./categories');
 
 const MONTH_NAMES = [
   'Janeiro','Fevereiro','Março','Abril','Maio','Junho',
-  'Julho','Agosto','Setembro','Outubro','Novembro','Dezembro'
+  'Julho','Agosto','Setembro','Outubro','Novembro','Dezembro',
 ];
 
-/**
- * Formata valor como moeda BRL: R$ 1.250,00
- */
 function formatBRL(value) {
-  return new Intl.NumberFormat('pt-BR', {
-    style: 'currency',
-    currency: 'BRL',
-  }).format(value);
+  return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value);
 }
 
-/**
- * Formata data ISO para DD/MM/YYYY HH:MM
- */
 function formatDate(isoStr) {
   const d = new Date(isoStr);
-  const day  = String(d.getDate()).padStart(2, '0');
-  const mon  = String(d.getMonth() + 1).padStart(2, '0');
-  const year = d.getFullYear();
-  const h    = String(d.getHours()).padStart(2, '0');
-  const m    = String(d.getMinutes()).padStart(2, '0');
-  return `${day}/${mon}/${year} ${h}:${m}`;
+  return `${String(d.getDate()).padStart(2,'0')}/${String(d.getMonth()+1).padStart(2,'0')}/${d.getFullYear()} ${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`;
 }
 
-/**
- * Confirmação de registro de um lançamento
- */
+// ── Confirmação de lançamento ─────────────────────────────────────────────────
+
 function formatEntry(entry, category) {
-  const icon  = entry.type === 'expense' ? '💸' : '💰';
-  const label = entry.type === 'expense' ? 'Gasto registrado' : 'Receita registrada';
+  const isExpense = entry.type === 'expense';
+  const icon     = isExpense ? '💸' : '💰';
+  const label    = isExpense ? 'Gasto registrado' : 'Receita registrada';
   const catIcon  = CATEGORY_ICONS[category] || '📦';
   const catLabel = CATEGORY_LABELS[category] || 'Outros';
 
-  return [
+  const lines = [
     `*${label}* ✅`,
-    `${icon} ${formatBRL(entry.amount)} - ${entry.description}`,
+    `${icon} ${formatBRL(entry.amount)} — ${entry.description}`,
     `${catIcon} Categoria: ${catLabel}`,
-    `📅 ${formatDate(new Date().toISOString())}`,
-    '',
-    '_Use /ajuda para ver os comandos_',
-  ].join('\n');
-}
+  ];
 
-/**
- * Lista de lançamentos de hoje
- */
-function formatToday(entries) {
-  if (entries.length === 0) {
-    return '*Hoje*\n\nNenhum lançamento registrado ainda.\n\nEnvie: `gastei 50 almoço` ou `recebi 1000 salário`';
+  if (entry.installments) {
+    lines.push(`📆 Parcelas: ${entry.installments}x de ${formatBRL(entry.amount / entry.installments)}`);
   }
 
-  const today = new Date();
-  const label = `${String(today.getDate()).padStart(2,'0')}/${String(today.getMonth()+1).padStart(2,'0')}/${today.getFullYear()}`;
+  lines.push(`📅 ${formatDate(new Date().toISOString())}`);
+  lines.push('');
+  lines.push('_Use /ajuda para ver os comandos_');
+
+  return lines.join('\n');
+}
+
+// ── Resumo de período (genérico) ──────────────────────────────────────────────
+
+function buildPeriodSummary(entries, title) {
+  if (entries.length === 0) {
+    return `*${title}*\n\nNenhum lançamento registrado.\n\nExemplos:\n• \`gastei 50 almoço\`\n• \`recebi 3000 salário\`\n• \`parcelei 1200 TV 12x\``;
+  }
 
   const expenses = entries.filter(e => e.type === 'expense');
   const incomes  = entries.filter(e => e.type === 'income');
+  const totalExp = expenses.reduce((s, e) => s + e.amount, 0);
+  const totalInc = incomes.reduce((s, e) => s + e.amount, 0);
+  const balance  = totalInc - totalExp;
+  const balIcon  = balance >= 0 ? '📈' : '📉';
 
-  const totalExpense = expenses.reduce((s, e) => s + e.amount, 0);
-  const totalIncome  = incomes.reduce((s, e) => s + e.amount, 0);
-  const balance = totalIncome - totalExpense;
-
-  const lines = [`*Lançamentos de Hoje - ${label}*`];
+  const lines = [`*${title}*`];
 
   if (expenses.length > 0) {
     lines.push('\n*💸 Gastos:*');
     for (const e of expenses) {
       const catIcon = CATEGORY_ICONS[e.category] || '📦';
-      lines.push(`  ${catIcon} ${formatBRL(e.amount)} - ${e.description} _(ID: ${e.id})_`);
+      const day = e.created_at.substring(8, 10);
+      const mon = e.created_at.substring(5, 7);
+      lines.push(`  ${catIcon} ${day}/${mon} ${formatBRL(e.amount)} — ${e.description} _(${e.id})_`);
     }
-    lines.push(`  *Total gasto: ${formatBRL(totalExpense)}*`);
+    lines.push(`  *Total: ${formatBRL(totalExp)}*`);
   }
 
   if (incomes.length > 0) {
     lines.push('\n*💰 Receitas:*');
     for (const e of incomes) {
-      lines.push(`  ✅ ${formatBRL(e.amount)} - ${e.description} _(ID: ${e.id})_`);
+      const day = e.created_at.substring(8, 10);
+      const mon = e.created_at.substring(5, 7);
+      lines.push(`  ✅ ${day}/${mon} ${formatBRL(e.amount)} — ${e.description} _(${e.id})_`);
     }
-    lines.push(`  *Total recebido: ${formatBRL(totalIncome)}*`);
+    lines.push(`  *Total: ${formatBRL(totalInc)}*`);
   }
 
-  const balanceIcon = balance >= 0 ? '📈' : '📉';
-  lines.push(`\n${balanceIcon} *Saldo do dia: ${formatBRL(balance)}*`);
-
+  lines.push(`\n${balIcon} *Saldo: ${formatBRL(balance)}*`);
   return lines.join('\n');
 }
 
-/**
- * Resumo mensal simples
- */
-function formatMonthlySummary(summary, year, month) {
-  const monthName = MONTH_NAMES[month - 1];
-  const balance   = summary.income - summary.expense;
-  const balanceIcon = balance >= 0 ? '📈' : '📉';
+function formatToday(entries) {
+  const today = new Date();
+  const label = `${String(today.getDate()).padStart(2,'0')}/${String(today.getMonth()+1).padStart(2,'0')}/${today.getFullYear()}`;
+  return buildPeriodSummary(entries, `Hoje — ${label}`);
+}
 
+function formatWeek(entries) {
+  return buildPeriodSummary(entries, 'Últimos 7 dias');
+}
+
+function formatMonthList(entries, year, month) {
+  return buildPeriodSummary(entries, `${MONTH_NAMES[month-1]}/${year}`);
+}
+
+// ── Resumo mensal ─────────────────────────────────────────────────────────────
+
+function formatMonthlySummary(summary, year, month) {
+  const balance = summary.income - summary.expense;
+  const balIcon = balance >= 0 ? '📈' : '📉';
   return [
-    `*Resumo - ${monthName}/${year}*`,
+    `*Resumo — ${MONTH_NAMES[month-1]}/${year}*`,
     '',
     `💸 Total gasto:    *${formatBRL(summary.expense)}*`,
     `💰 Total recebido: *${formatBRL(summary.income)}*`,
-    `${balanceIcon} Saldo do mês:  *${formatBRL(balance)}*`,
+    `${balIcon} Saldo do mês:  *${formatBRL(balance)}*`,
   ].join('\n');
 }
 
-/**
- * Gastos por categoria
- */
-function formatCategories(totals, year, month) {
-  const monthName = MONTH_NAMES[month - 1];
+// ── Categorias ────────────────────────────────────────────────────────────────
 
-  if (totals.length === 0) {
-    return `*Categorias - ${monthName}/${year}*\n\nNenhum gasto registrado neste mês.`;
-  }
+function formatCategories(totals, year, month) {
+  const title = `Gastos por Categoria — ${MONTH_NAMES[month-1]}/${year}`;
+  if (totals.length === 0) return `*${title}*\n\nNenhum gasto registrado neste mês.`;
 
   const grandTotal = totals.reduce((s, t) => s + t.total, 0);
-
-  const lines = [`*Gastos por Categoria - ${monthName}/${year}*`, ''];
+  const lines = [`*${title}*`, ''];
 
   for (const row of totals) {
     const icon  = CATEGORY_ICONS[row.category] || '📦';
@@ -133,84 +130,47 @@ function formatCategories(totals, year, month) {
 
   lines.push('');
   lines.push(`💸 *Total: ${formatBRL(grandTotal)}*`);
-
   return lines.join('\n');
 }
 
-/**
- * Lista detalhada do mês
- */
-function formatMonthList(entries, year, month) {
-  const monthName = MONTH_NAMES[month - 1];
+// ── Busca ─────────────────────────────────────────────────────────────────────
 
-  if (entries.length === 0) {
-    return `*${monthName}/${year}*\n\nNenhum lançamento neste mês.`;
+function formatSearch(entries, term) {
+  if (entries.length === 0) return `*Busca: "${term}"*\n\nNenhum lançamento encontrado.`;
+
+  const lines = [`*Busca: "${term}"* (${entries.length} resultado(s))`, ''];
+  for (const e of entries) {
+    const icon = e.type === 'expense' ? '💸' : '💰';
+    const day  = e.created_at.substring(8, 10);
+    const mon  = e.created_at.substring(5, 7);
+    const year = e.created_at.substring(0, 4);
+    lines.push(`${icon} ${day}/${mon}/${year} ${formatBRL(e.amount)} — ${e.description} _(${e.id})_`);
   }
-
-  const expenses = entries.filter(e => e.type === 'expense');
-  const incomes  = entries.filter(e => e.type === 'income');
-
-  const totalExpense = expenses.reduce((s, e) => s + e.amount, 0);
-  const totalIncome  = incomes.reduce((s, e) => s + e.amount, 0);
-
-  const lines = [`*Lançamentos - ${monthName}/${year}*`];
-
-  if (expenses.length > 0) {
-    lines.push('\n*💸 Gastos:*');
-    for (const e of expenses) {
-      const catIcon = CATEGORY_ICONS[e.category] || '📦';
-      const day = e.created_at.substring(8, 10);
-      lines.push(`  ${catIcon} ${day}/${String(month).padStart(2,'0')} - ${formatBRL(e.amount)} - ${e.description} _(${e.id})_`);
-    }
-    lines.push(`  *Total: ${formatBRL(totalExpense)}*`);
-  }
-
-  if (incomes.length > 0) {
-    lines.push('\n*💰 Receitas:*');
-    for (const e of incomes) {
-      const day = e.created_at.substring(8, 10);
-      lines.push(`  ✅ ${day}/${String(month).padStart(2,'0')} - ${formatBRL(e.amount)} - ${e.description} _(${e.id})_`);
-    }
-    lines.push(`  *Total: ${formatBRL(totalIncome)}*`);
-  }
-
-  const balance = totalIncome - totalExpense;
-  const balanceIcon = balance >= 0 ? '📈' : '📉';
-  lines.push(`\n${balanceIcon} *Saldo: ${formatBRL(balance)}*`);
-
   return lines.join('\n');
 }
 
-/**
- * Confirmação de tarefa registrada
- */
+// ── Tarefas ───────────────────────────────────────────────────────────────────
+
 function formatTaskCreated(task) {
   const d   = new Date(task.dueAt);
   const day = String(d.getDate()).padStart(2, '0');
   const mon = MONTH_NAMES[d.getMonth()];
   const h   = String(d.getHours()).padStart(2, '0');
   const m   = String(d.getMinutes()).padStart(2, '0');
-  const when = `${day} de ${mon} às ${h}:${m}`;
-
   return [
     '*Tarefa agendada!* 📌',
     `📝 ${task.description}`,
-    `📅 ${when}`,
+    `📅 ${day} de ${mon} às ${h}:${m}`,
     '',
     '_Você será avisado 1 dia antes, 1 hora antes e na hora._',
   ].join('\n');
 }
 
-/**
- * Lista de tarefas pendentes
- */
 function formatTaskList(tasks) {
   if (tasks.length === 0) {
-    return '*Tarefas* 📋\n\nNenhuma tarefa agendada.\n\nPara agendar: `reunião às 10h do dia 15 de março`';
+    return '*Tarefas* 📋\n\nNenhuma tarefa agendada.\n\nPara agendar:\n• `reunião às 10h do dia 15 de março`\n• `lembrar dentista amanhã às 14h`';
   }
-
   const lines = ['*Tarefas Agendadas* 📋', ''];
-
   for (const t of tasks) {
     const d   = new Date(t.due_at);
     const day = String(d.getDate()).padStart(2, '0');
@@ -220,55 +180,71 @@ function formatTaskList(tasks) {
     lines.push(`📌 *${t.description}*`);
     lines.push(`   📅 ${day} de ${mon} às ${h}:${m} _(ID: ${t.id})_`);
   }
-
   lines.push('');
-  lines.push('_/feito <ID> para concluir · /cancelar <ID> para remover_');
-
+  lines.push('_/feito <ID> · /cancelar <ID>_');
   return lines.join('\n');
 }
 
-/**
- * Mensagem de ajuda
- */
+// ── Ajuda ─────────────────────────────────────────────────────────────────────
+
 function formatHelp() {
   return [
-    '*Bot de Finanças & Agenda* 💼📋',
+    '*Bot de Finanças & Agenda* 💼',
     '',
-    '*── FINANÇAS ──*',
+    '*── GASTOS ──*',
     '  `gastei 50 almoço`',
     '  `paguei 120 farmácia`',
-    '  `recebi 3000 salário`',
+    '  `comprei 89 livro`',
+    '  `saiu 35 uber`',
+    '  `devo 500 cartão`',
+    '  `saquei 200 banco`',
+    '  `-50 almoço`  _(sinal negativo)_',
+    '  `R$ 50 almoço`  _(prefixo R$)_',
     '',
-    '  /hoje        → lançamentos de hoje',
-    '  /mes         → lançamentos do mês',
-    '  /resumo      → total gasto vs recebido',
-    '  /categorias  → gastos por categoria',
-    '  /apagar <ID> → remove lançamento',
+    '*── PARCELAS ──*',
+    '  `parcelei 1200 TV 12x`',
+    '  `comprei 600 celular 6x`',
+    '  `paguei 2400 notebook em 12x`',
+    '',
+    '*── PIX ──*',
+    '  `pix 50 João`  _(enviado)_',
+    '  `recebi pix 200 cliente`  _(recebido)_',
+    '',
+    '*── MÚLTIPLOS ──*',
+    '  `gastei 50 almoço e 30 uber`',
+    '  `paguei 80 mercado e 45 farmácia`',
+    '',
+    '*── RECEITAS ──*',
+    '  `recebi 3000 salário`',
+    '  `ganhei 500 freela`',
+    '  `entrou 1500 cliente`',
+    '  `+3000 salário`  _(sinal positivo)_',
+    '',
+    '*── CONSULTAS ──*',
+    '  /hoje         → lançamentos de hoje',
+    '  /semana       → últimos 7 dias',
+    '  /mes          → lançamentos do mês',
+    '  /mesanterior  → mês passado',
+    '  /resumo       → total gasto vs recebido',
+    '  /categorias   → gastos por categoria',
+    '  /buscar <termo> → busca por descrição',
+    '  /apagar <ID>    → remove lançamento',
     '',
     '*── TAREFAS & LEMBRETES ──*',
     '  `reunião às 10h do dia 15 de março`',
     '  `lembrar dentista amanhã às 14h`',
     '  `consulta sexta às 9h`',
-    '  `tarefa mercado hoje às 18h`',
     '',
-    '  /tarefas       → lista tarefas pendentes',
-    '  /feito <ID>    → marca tarefa como feita',
-    '  /cancelar <ID> → remove tarefa',
-    '',
-    '  _Lembretes automáticos: 1 dia antes, 1 hora antes e na hora_',
+    '  /tarefas        → lista tarefas',
+    '  /feito <ID>     → conclui tarefa',
+    '  /cancelar <ID>  → remove tarefa',
     '',
     '  /ajuda → esta mensagem',
   ].join('\n');
 }
 
 module.exports = {
-  formatEntry,
-  formatToday,
-  formatMonthlySummary,
-  formatCategories,
-  formatMonthList,
-  formatTaskCreated,
-  formatTaskList,
-  formatHelp,
-  formatBRL,
+  formatEntry, formatToday, formatWeek, formatMonthlySummary,
+  formatCategories, formatMonthList, formatSearch,
+  formatTaskCreated, formatTaskList, formatHelp, formatBRL,
 };
